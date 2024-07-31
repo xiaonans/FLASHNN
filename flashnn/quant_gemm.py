@@ -113,6 +113,7 @@ class GemmWeightOnly(BackendKernel):
     def __init__(self, out_ty: torch.dtype = torch.float16):
         super().__init__()
         self.out_ty = out_ty
+        self.best_config = None
 
     def _triton_impl(self, act, quant_w, scale_w, bias=None, zero_points=None):
         assert quant_w.dtype == torch.int8, "Weight must be int8 type"
@@ -129,8 +130,8 @@ class GemmWeightOnly(BackendKernel):
             triton_out = torch.zeros(
                 [act.shape[0], quant_w.shape[0]], dtype=self.out_ty, device=act.device
             )
-            triton_gemm_a16w8_forward(
-                triton_out, act, quant_w, scale_w, bias=bias, zero_points=zero_points
+            self.best_config = triton_gemm_a16w8_forward(
+                triton_out, act, quant_w, scale_w, bias=bias, zero_points=zero_points, best_config=self.best_config
             )
         elif weight_type == torch.quint4x2:
             triton_out = torch.zeros(

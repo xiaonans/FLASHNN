@@ -82,6 +82,16 @@ def pack_int8_tensor_to_packed_int4(int8_data) -> torch.Tensor:
     int8_data = int8_data.contiguous().view(-1)
     return (int8_data[::2] << 4 | int8_data[1::2]).view(down_size_(shape, 2))
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class TestWeightOnlyQGemm(unittest.TestCase):
     def _run_test_weight_layout_transform(
@@ -160,17 +170,19 @@ class TestWeightOnlyQGemm(unittest.TestCase):
             reference_result += bias.unsqueeze(0)
         else:
             bias = None
-        tri_result = flashnn.GemmWeightOnly()(
+        
+        gemm_weight_only = flashnn.GemmWeightOnly()
+        tri_result = gemm_weight_only(
             inputs, q_weights, scales, bias, zero_points
         )
 
         ms_torch = triton.testing.do_bench(lambda: torch.matmul(inputs, dq_weights))
-        ms_triton = triton.testing.do_bench(lambda: flashnn.GemmWeightOnly()(
+        ms_triton = triton.testing.do_bench(lambda: gemm_weight_only(
             inputs, q_weights, scales, bias, zero_points))
         perf = lambda ms: 2 * gemm_m * gemm_n * gemm_k * 1e-12 / (ms * 1e-3)
 
-        print("torch:", "%0.2f"%perf(ms_torch), "TFLOPS")
-        print("triton:", "%0.2f"%perf(ms_triton), "TFLOPS")
+        print(bcolors.WARNING + "torch:", "%0.2f"%perf(ms_torch), "TFLOPS" + bcolors.ENDC)
+        print(bcolors.WARNING + "triton:", "%0.2f"%perf(ms_triton), "TFLOPS" + bcolors.ENDC)
         # torch.testing.assert_close(
         #     tri_result, reference_result, rtol=0.001, atol=0.002, check_dtype=False
         # )

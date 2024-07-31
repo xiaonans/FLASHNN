@@ -333,7 +333,7 @@ def _triton_gemm_a16w4_sub_channel_kernel(
         tl.atomic_add(C + rm[:, None] * stride_cm + rn[None, :], acc, mask=mask)
 
 
-def triton_gemm_a16w4_forward(out, act, quant_w, scale_w, bias=None, zero_points=None):
+def triton_gemm_a16w4_forward(out, act, quant_w, scale_w, bias=None, zero_points=None, best_config=None):
     assert quant_w.dtype == torch.int8, "Weight must be int8 type"
     assert act.is_contiguous(), "Activation must be contiguous"
     assert quant_w.is_contiguous(), "Weight must be contiguous"
@@ -397,10 +397,11 @@ def triton_gemm_a16w4_forward(out, act, quant_w, scale_w, bias=None, zero_points
     else:
         k_per_scale = int(act.shape[1] / scale_w.shape[0])
         assert k_per_scale > 0, "k_per_scale should greater than 0"
+        print("best_config = ", best_config)
         triton_gemm_a16w4_sub_channel = triton.autotune(
-            configs=_get_autotune_configs(is_perchannel),
+            configs=[best_config] if best_config != None else _get_autotune_configs(is_perchannel),
             key=["M", "N", "K"],
         )(_triton_gemm_a16w4_sub_channel_kernel)
         triton_gemm_a16w4_sub_channel[grid](BLOCK_K=k_per_scale, **kwargs)
 
-    return out
+    return triton_gemm_a16w4_sub_channel.best_config
