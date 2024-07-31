@@ -397,7 +397,7 @@ def triton_gemm_a16w4_forward(out, act, quant_w, scale_w, bias=None, zero_points
     else:
         k_per_scale = int(act.shape[1] / scale_w.shape[0])
         assert k_per_scale > 0, "k_per_scale should greater than 0"
-        print("best_config = ", best_config)
+        # print("best_config = ", best_config)
         triton_gemm_a16w4_sub_channel = triton.autotune(
             configs=[best_config] if best_config != None else _get_autotune_configs(is_perchannel),
             key=["M", "N", "K"],

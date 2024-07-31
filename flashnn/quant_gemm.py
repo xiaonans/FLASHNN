@@ -139,8 +139,8 @@ class GemmWeightOnly(BackendKernel):
                 dtype=self.out_ty,
                 device=act.device,
             )
-            triton_gemm_a16w4_forward(
-                triton_out, act, quant_w, scale_w, bias=bias, zero_points=zero_points
+            self.best_config = triton_gemm_a16w4_forward(
+                triton_out, act, quant_w, scale_w, bias=bias, zero_points=zero_points, best_config=self.best_config
             )
         else:
             raise AssertionError("Gemm WeightOnly only support int8 or int4x2")

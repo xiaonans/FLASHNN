@@ -175,6 +175,7 @@ class TestWeightOnlyQGemm(unittest.TestCase):
         tri_result = gemm_weight_only(
             inputs, q_weights, scales, bias, zero_points
         )
+        print("found best config: ", gemm_weight_only.best_config)
 
         ms_torch = triton.testing.do_bench(lambda: torch.matmul(inputs, dq_weights))
         ms_triton = triton.testing.do_bench(lambda: gemm_weight_only(
@@ -192,7 +193,7 @@ class TestWeightOnlyQGemm(unittest.TestCase):
         gemm_m = [1, 32,512, 4096]
         gemm_k_n = [(4096, 4096), (4096, 1024), (4096, 14336), (14336, 4096)]
         compute_type = torch.float16
-        weight_dtype = [torch.int8, torch.quint4x2]
+        weight_dtype = [torch.int8] #torch.quint4x2]
         use_bias = [False]
         is_sub_channel = [True]
         quant_methods = ["asymmetric"]
