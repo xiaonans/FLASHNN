@@ -6,10 +6,9 @@ import unittest
 
 import flashnn
 import torch
+import triton
 
 torch.manual_seed(0)
-from torch.ao.quantization.observer import PerChannelMinMaxObserver
-
 
 def block_quantize(x, scales, block_size, quant_min, quant_max, zero_points=None):
     res = torch.zeros_like(x, dtype=torch.int8)
@@ -164,32 +163,44 @@ class TestWeightOnlyQGemm(unittest.TestCase):
         tri_result = flashnn.GemmWeightOnly()(
             inputs, q_weights, scales, bias, zero_points
         )
+
+        ms_torch = triton.testing.do_bench(lambda: torch.matmul(inputs, dq_weights))
+        ms_triton = triton.testing.do_bench(lambda: flashnn.GemmWeightOnly()(
+            inputs, q_weights, scales, bias, zero_points))
+        perf = lambda ms: 2 * gemm_m * gemm_n * gemm_k * 1e-12 / (ms * 1e-3)
+
+        print("torch:", "%0.2f"%perf(ms_torch), "TFLOPS")
+        print("triton:", "%0.2f"%perf(ms_triton), "TFLOPS")
         # torch.testing.assert_close(
         #     tri_result, reference_result, rtol=0.001, atol=0.002, check_dtype=False
         # )
 
     def test_weight_layout_transform(self):
-        gemm_m, gemm_n, gemm_k = 3, 1024, 4096
+        gemm_m, gemm_n, gemm_k = 4096, 4096, 4096
+        gemm_m = [1, 32,512, 4096]
+        gemm_k_n = [(4096, 4096), (4096, 1024), (4096, 14336), (14336, 4096)]
         compute_type = torch.float16
         weight_dtype = [torch.int8, torch.quint4x2]
         use_bias = [False]
         is_sub_channel = [True]
-        quant_methods = ["symmetric", "asymmetric"]
+        quant_methods = ["asymmetric"]
         for quant_method in quant_methods:
             for w in weight_dtype:
                 for b in use_bias:
                     for s in is_sub_channel:
-                        print(
-                            f"Testing weight_layout_transform with weight_dtype={w} use_bias={b} is_sub_channel={s} quant_method={quant_method}.....",
-                            flush=True,
-                        )
-                        self._run_test_weight_layout_transform(
-                            gemm_m, gemm_n, gemm_k, compute_type, w, b, s, quant_method
-                        )
-                        print(
-                            f"Pass test of weight_layout_transform with weight_dtype={w} use_bias={b} is_sub_channel={s} quant_method={quant_method}!",
-                            flush=True,
-                        )
+                        for m in gemm_m:
+                            for k, n in gemm_k_n:
+                                print(
+                                    f"\nweight_dtype={w} use_bias={b} is_sub_channel={s} quant_method={quant_method}, M={m}, N={n}, K={k}.....",
+                                    flush=True,
+                                )
+                                self._run_test_weight_layout_transform(
+                                    m, n, k, compute_type, w, b, s, quant_method
+                                )
+                                print(
+                                    f"Pass test of weight_layout_transform with weight_dtype={w} use_bias={b} is_sub_channel={s} quant_method={quant_method}!",
+                                    flush=True,
+                                )
 
 
 if __name__ == "__main__":
